@@ -20,6 +20,8 @@ class Subsite extends DataObject implements PermissionProvider {
 	static $force_subsite = null;
 
 	static $write_hostmap = true;
+    
+    private static $_userIsAdmin=null;
 	
 	static $default_sort = "\"Title\" ASC";
 
@@ -279,8 +281,22 @@ JS;
 	 * @return int ID of the current subsite instance
 	 */
 	static function currentSubsiteID() {
-		if(isset($_REQUEST['SubsiteID'])) $id = (int)$_REQUEST['SubsiteID'];
-		else $id = Session::get('SubsiteID');
+		if(isset($_REQUEST['SubsiteID'])) {
+            if(self::$_userIsAdmin===null) {
+                $prev=self::$disable_subsite_filter;
+                self::$disable_subsite_filter=true;
+                self::$_userIsAdmin=Permission::check('ADMIN');
+                self::$disable_subsite_filter=$prev;
+            }
+        
+            if(Director::isDev() || Director::is_cli() || self::$_userIsAdmin) {
+                $id = (int)$_REQUEST['SubsiteID'];
+            }else {
+                $id = Session::get('SubsiteID');
+            }
+        }else {
+            $id = Session::get('SubsiteID');
+        }
 
 		if($id === NULL) {
 			$id = self::getSubsiteIDForDomain();

@@ -24,7 +24,7 @@ class LeftAndMainSubsites extends Extension {
 				}
 				
 				//Redirect to clear the current page
-				$this->owner->redirect('admin/pages');
+				$this->owner->redirectBack();
 			}
 		}
 	}

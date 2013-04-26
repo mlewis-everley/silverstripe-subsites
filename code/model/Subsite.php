@@ -20,6 +20,8 @@ class Subsite extends DataObject implements PermissionProvider {
 	static $force_subsite = null;
 
 	static $write_hostmap = true;
+    
+    private static $_userIsAdmin=null;
 	
 	static $default_sort = "\"Title\" ASC";
 
@@ -286,8 +288,22 @@ JS;
 	 * @return int ID of the current subsite instance
 	 */
 	static function currentSubsiteID() {
-		if(isset($_GET['SubsiteID'])) $id = (int)$_GET['SubsiteID'];
-		else $id = Session::get('SubsiteID');
+		if(isset($_REQUEST['SubsiteID'])) {
+            if(self::$_userIsAdmin===null) {
+                $prev=self::$disable_subsite_filter;
+                self::$disable_subsite_filter=true;
+                self::$_userIsAdmin=Permission::check('ADMIN');
+                self::$disable_subsite_filter=$prev;
+            }
+        
+            if(Director::isDev() || Director::is_cli() || self::$_userIsAdmin) {
+                $id = (int)$_REQUEST['SubsiteID'];
+            }else {
+                $id = Session::get('SubsiteID');
+            }
+        }else {
+            $id = Session::get('SubsiteID');
+        }
 
 		if($id === NULL) {
 			$id = self::getSubsiteIDForDomain();
@@ -621,7 +637,7 @@ JS;
 	static function get_from_all_subsites($className, $filter = "", $sort = "", $join = "", $limit = "") {
 		$oldState = self::$disable_subsite_filter;
 		self::$disable_subsite_filter = true;
-		$result = DataObject::get($className, $filter, $sort, $join, $limit);
+		$result = new ArrayList(DataObject::get($className, $filter, $sort, $join, $limit)->toArray());
 		self::$disable_subsite_filter = $oldState;
 		return $result;
 	}
@@ -639,5 +655,65 @@ JS;
 	static function on_db_reset() {
 		self::$_cache_accessible_sites = array();
 		self::$_cache_subsite_for_domain = array();
+	}
+}
+
+/**
+ * An instance of subsite that can be duplicated to provide a quick way to create new subsites.
+ *
+ * @package subsites
+ */
+class Subsite_Template extends Subsite {
+	/**
+	 * Create an instance of this template, with the given title & domain
+	 */
+	function createInstance($title, $domain = null) {
+		$intranet = Object::create('Subsite');
+		$intranet->Title = $title;
+		$intranet->TemplateID = $this->ID;
+		$intranet->write();
+		
+		if($domain) {
+			$intranetDomain = Object::create('SubsiteDomain');
+			$intranetDomain->SubsiteID = $intranet->ID;
+			$intranetDomain->Domain = $domain;
+			$intranetDomain->write();
+		}
+
+		$oldSubsiteID = Session::get('SubsiteID');
+		self::changeSubsite($this->ID);
+
+		/*
+		 * Copy site content from this template to the given subsite. Does this using an iterative depth-first search.
+		 * This will make sure that the new parents on the new subsite are correct, and there are no funny
+		 * issues with having to check whether or not the new parents have been added to the site tree
+		 * when a page, etc, is duplicated
+		 */
+		$stack = array(array(0,0));
+		while(count($stack) > 0) {
+			list($sourceParentID, $destParentID) = array_pop($stack);
+
+			$children = Versioned::get_by_stage('SiteTree', 'Live', "\"ParentID\" = $sourceParentID", '');
+
+			if($children) {
+				foreach($children as $child) {
+					//Change to destination subsite
+					self::changeSubsite($intranet->ID);
+					$childClone = $child->duplicateToSubsite($intranet);
+
+					$childClone->ParentID = $destParentID;
+					$childClone->writeToStage('Stage');
+					$childClone->publish('Stage', 'Live');
+
+					//Change Back to this subsite
+					self::changeSubsite($this->ID);
+					array_push($stack, array($child->ID, $childClone->ID));
+				}
+			}
+		}
+
+		self::changeSubsite($oldSubsiteID);
+
+		return $intranet;
 	}
 }

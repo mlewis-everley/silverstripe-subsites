@@ -13,25 +13,19 @@ class LeftAndMainSubsites extends Extension {
 		Requirements::javascript('subsites/javascript/LeftAndMain_Subsites.js');
 		Requirements::javascript('subsites/javascript/VirtualPage_Subsites.js');
 		
-		if(isset($_GET['SubsiteID'])) {
-			// Clear current page when subsite changes (or is set for the first time)
-			if(!Session::get('SubsiteID') || $_GET['SubsiteID'] != Session::get('SubsiteID')) {
-				Session::clear("{$this->owner->class}.currentPage");
-			}
-			
+		if(isset($_REQUEST['SubsiteID'])) {
 			// Update current subsite in session
 			Subsite::changeSubsite($_GET['SubsiteID']);
 			
-			//Redirect to clear the current page
-			return $this->owner->redirect('admin/pages');
-		}
-
-		// Set subsite ID based on currently shown record
-		$req = $this->owner->getRequest();
-		$id = $req->param('ID');
-		if($id && is_numeric($id)) {
-			$record = DataObject::get_by_id($this->owner->stat('tree_class'), $id);
-			if($record) Session::set('SubsiteID', $record->SubsiteID);
+			if($this->owner->getRequest()->param('Action')!='AddForm' && !($this->owner instanceof CMSPageAddController)) {
+				// Clear current page when subsite changes (or is set for the first time)
+				if(!Session::get('SubsiteID') || $_REQUEST['SubsiteID'] != Session::get('SubsiteID')) {
+					Session::clear("{$this->owner->class}.currentPage");
+				}
+				
+				//Redirect to clear the current page
+				$this->owner->redirect('admin/pages');
+			}
 		}
 	}
 

@@ -17,11 +17,13 @@ class SubsiteAdmin extends ModelAdmin {
 
 	public function getEditForm($id = null, $fields = null) {
 		$form = parent::getEditForm($id, $fields);
-
-		$grid=$form->Fields()->dataFieldByName('Subsite');
-		if($grid) {
-			$grid->getConfig()->removeComponentsByType('GridFieldDetailForm');
-			$grid->getConfig()->addComponent(new GridFieldSubsiteDetailForm());
+		
+		if($this->modelClass=='Subsite') {
+			$grid=$form->Fields()->dataFieldByName('Subsite');
+			if($grid) {
+				$grid->getConfig()->removeComponentsByType('GridFieldDetailForm');
+				$grid->getConfig()->addComponent(new GridFieldSubsiteDetailForm());
+			}
 		}
 
 		return $form;

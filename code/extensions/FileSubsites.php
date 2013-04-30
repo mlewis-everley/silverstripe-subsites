@@ -36,7 +36,9 @@ class FileSubsites extends DataExtension {
 				$values[$site->ID] = $site->Title;
 			}
 			ksort($values);
-			if($sites)$fields->push(new DropdownField('SubsiteID', 'Subsite', $values));
+			
+			// Check that subsites exist and that current folder is not root
+			if($sites && $this->owner->ID != 0)$fields->push(new DropdownField('SubsiteID', 'Subsite', $values));
 		}
 	}
 
